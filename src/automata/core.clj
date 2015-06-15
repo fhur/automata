@@ -17,17 +17,14 @@
 
 (defn eval-dfa
   [dfa string]
-  (reduce (fn [state input]
-            (if (nil? state)
-              nil
-              (get (:transitions dfa) [state (str input)])))
-          (:init dfa)
-          (seq string)))
-
-(def dfa-01*0 (create-dfa :a [:c]
-                          [:a "0" :b]
-                          [:b "1" :b]
-                          [:b "0" :c]))
+  (accept? dfa
+    (reduce (fn [state input]
+              (if (nil? state)
+                nil
+                (get (:transitions dfa)
+                     [state (str input)])))
+            (:init dfa)
+            (seq string))))
 
 
 
