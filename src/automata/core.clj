@@ -1,7 +1,7 @@
 (ns automata.core)
 
 (defn create-dfa
-  "Creates a hashmap based representation of a dfa
+  "Creates a hashmap based representation of a DFA
   Syntax: (create-dfa init-state accept-states & transitions)
   Where each transition is a 3-tuple of ['initial state' 'input' 'resulting state']
   Note: this method does no validation on the transitions."
@@ -17,6 +17,9 @@
                         {} transitions)})
 
 (defn create-nfa
+  "Creates a hashmap based representation of a NFA
+  each transition is a 3-tuple of ['state' 'input' 'resulting state']
+  Epsilon transitions can be specified as ['state' :eps 'resulting state']"
   [init-state accept-states & transitions]
   {:init init-state
    :accept (set accept-states)
@@ -26,7 +29,9 @@
                             (assoc nfa-map [from input] (conj trans-on-input to))))
                         {} transitions)})
 (defn in?
+  "Return true if setcoll contains at least one element in values"
   [setcoll values]
+  {:pre [(set? setcoll)]}
   (not (nil? (some setcoll values))))
 
 (defn- get-transition
@@ -64,9 +69,10 @@
             (seq string))))
 
 (defn eval-nfa
-  [nfa charseq]
+  "Executed the given NFA as created by create-nfa using the given string."
+  [nfa string]
   ;; Create a queue that will hold all calls that must be processed recursively
-  (loop [queue [[charseq (:init nfa)]]
+  (loop [queue [[(seq string) (:init nfa)]]
          result []]
     (if (empty? queue)
       ;; once the queue is empty, we have finished processing everything and so

@@ -100,6 +100,7 @@
   :when ["00"] = false
   :when ["10"] = false
   :when ["111110"] = false
-  :when ["1111000000000000000000000101010101011"] = true)
+  :when ["1111000000000000000000000101010101011"] = true
+  :when [ (apply str (repeat 500 "10101")) ] = true) ;; this tests that there is no stack overflow for large string
 
 
