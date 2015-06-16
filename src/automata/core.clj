@@ -25,24 +25,28 @@
                                 trans-on-input (get nfa-map [from input] [])]
                             (assoc nfa-map [from input] (conj trans-on-input to))))
                         {} transitions)})
+(defn in?
+  [setcoll values]
+  (not (nil? (some setcoll values))))
 
-(defn get-transition
+(defn- get-transition
   [dfa state input]
   (if (nil? state)
     nil
     (get (:transitions dfa)
       [state (str input)])))
 
-(defn get-transitions
+(defn- merge-repeated
+  [coll item-to-repeat]
+  (map vector coll (repeat item-to-repeat)))
+
+(defn- get-transitions
   [nfa state input]
-  (get (:transitions nfa)
-       [state (if (= :eps input)
-                :eps
-                (str input))]
-       []))
+  (let [get-next #(merge-repeated (get (:transitions nfa) [state %1] []) %2)]
+      (concat (get-next :eps 0)
+              (get-next (str input) 1))))
 
-
-(defn accept?
+(defn- accept?
   "Returns true if the given state is an accepting state for the dfa"
   [dfa state]
   (contains? (:accept dfa)
@@ -60,17 +64,21 @@
             (seq string))))
 
 (defn eval-nfa
-  ([nfa inputs state]
-   (if (empty? inputs)
-     [state]
-     (let [input (first inputs)
-           next-states (get-transitions nfa state input)
-           eps-states  (get-transitions nfa state :eps)]
-       (apply concat (concat (map #(eval-nfa nfa (rest inputs) %) next-states)
-                             (map #(eval-nfa nfa inputs %) eps-states))))))
-  ([nfa string]
-   (reduce #(or %1 %2)
-          (map #(contains? (:accept nfa) %)
-               (eval-nfa nfa (seq string) (:init nfa))))))
+  [nfa charseq]
+  ;; Create a queue that will hold all calls that must be processed recursively
+  (loop [queue [[charseq (:init nfa)]]
+         result []]
+    (if (empty? queue)
+      ;; once the queue is empty, we have finished processing everything and so
+      ;; we can just return the result
+      (in? (:accept nfa) result)
+      (let [[charseq state] (first queue) ;; take the first from the queue
+            input (first charseq) ;; the the first char of input
+            next-states (get-transitions nfa state input)
+            next-res (if (empty? charseq) (conj result state) result)]
+        (recur (concat (rest queue) ;; pop one from the queue
+                       (map #(vector (drop (second %) charseq) (first %))
+                            next-states))
+               next-res)))))
 
 
