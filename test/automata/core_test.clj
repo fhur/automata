@@ -87,6 +87,12 @@
   :when [[:b :eps]] = [:c :d]
   :when [[:g :eps]] = [:a :h])
 
+(expected-when ":states should return a list of all states" :states
+  :when [nfa-1] = #{:a :b :c :d :e :f :g :h :i :j}
+  :when [dfa-3] = #{:a :b :c}
+  :when [dfa-2] = #{:a :b :c :d :e :f :g}
+  :when [dfa-01*0] = #{:a :b :c})
+
 (expected-when "NFA should accept [01]*1*" (partial eval-nfa nfa-1)
   :when ["1"] = true
   :when ["001"] = true

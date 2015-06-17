@@ -10,6 +10,7 @@
          (not (empty? transitions))
          (not (empty? accept-states))]}
   {:init init-state
+   :states (set (concat (map first transitions) (map last transitions)))
    :accept (set accept-states)
    :transitions (reduce (fn [dfa-map current]
                           (let [[from input to] current]
@@ -22,6 +23,7 @@
   Epsilon transitions can be specified as ['state' :eps 'resulting state']"
   [init-state accept-states & transitions]
   {:init init-state
+   :states (set (concat (map first transitions) (map last transitions)))
    :accept (set accept-states)
    :transitions (reduce (fn [nfa-map current]
                           (let [[from input to] current
