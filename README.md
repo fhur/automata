@@ -1,6 +1,10 @@
 # automata
 
-A Clojure library designed to ... well, that part is up to you.
+A clojure library that implements regular expressions using the classic
+to NFA to DFA approach.
+
+This library is meant for learning purposes only, do not use in
+production.
 
 ## Usage
 

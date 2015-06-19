@@ -160,6 +160,16 @@
                           [init :eps end]
                           [nfa-end :eps init]))))
 
+(defn nfa-optional
+  "Computes the optional (?) operator given an NFA."
+  [nfa]
+  (let [init (gensym :opt-init)
+        nfa-end (first (:accept nfa))]
+    (create-nfa-raw init [nfa-end]
+                    (conj (nfa-transitions-list nfa)
+                          [init :eps (:init nfa)]
+                          [init :eps nfa-end]))))
+
 
 (defn single-char-nfa
   "Helper method that returns an NFA that accepts only the given
@@ -167,5 +177,23 @@
   [ch]
   (create-nfa :a [:end] [:a ch :end]))
 
+(defmacro regex
+  "Allows you to write regular expressions in prefix notation. Currently only these
+  operators are allowed:
+  '*' kleen star
+  '+' xor
+  '.' concatenation
+  '?' optional
+  "
+  [sym & args]
+  (let [sym-map {'* 'nfa-kleen
+                 '+ 'nfa-xor
+                 '. 'nfa-cat
+                 '? 'nfa-optional}
+        mapped-sym (get sym-map sym)]
+    (cons mapped-sym
+          (map (fn [item]
+                 (if (coll? item)
+                   (concat `(regex ~(first item)) (rest item))
+                   `(single-char-nfa ~item))) args))))
 
-(defn 

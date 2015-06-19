@@ -151,7 +151,8 @@
       c-nfa (single-char-nfa "c")
       eval-nfa-xor #(eval-nfa (apply nfa-xor %1) %2)
       eval-nfa-cat #(eval-nfa (apply nfa-cat %1) %2)
-      eval-nfa-kleen #(eval-nfa (nfa-kleen %1) %2)]
+      eval-nfa-kleen #(eval-nfa (nfa-kleen %1) %2)
+      eval-nfa-opt #(eval-nfa (nfa-optional %1) %2)]
 
   (expected-when "nfa-xor should allow one or the other but not both" eval-nfa-xor
     :when [[a-nfa b-nfa] "ab"] = false
@@ -207,7 +208,13 @@
     :when [(nfa-xor a-nfa b-nfa) "b"] = true
     :when [(nfa-xor a-nfa b-nfa) "ab"] = true
     :when [(nfa-xor a-nfa b-nfa) "baa"] = true
-    :when [(nfa-xor a-nfa b-nfa) "abaaabbbaababababa"] = true))
+    :when [(nfa-xor a-nfa b-nfa) "abaaabbbaababababa"] = true)
 
+  (expected-when "nfa-optional should allow 0 or 1 of an nfa" eval-nfa-opt
+    :when [a-nfa ""] = true
+    :when [a-nfa "a"] = true
+    :when [a-nfa "b"] = false
+    :when [(nfa-cat a-nfa b-nfa) "" ] = true
+    :when [(nfa-cat a-nfa b-nfa) "ab" ] = true))
 
 
