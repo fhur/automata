@@ -1,5 +1,21 @@
 (ns automata.core)
 
+
+(defn- create-nfa-raw
+  [init-state accept-states transitions]
+  {:init init-state
+   :accept (set accept-states)
+   :transitions (reduce (fn [nfa-map current]
+                          (let [[from input to] current
+                                trans-on-input (get nfa-map [from input] [])]
+                            (assoc nfa-map [from input] (conj trans-on-input to))))
+                        {} transitions)})
+
+(defn gensym-states
+  [transitions]
+  (reduce (fn [m state] (assoc m state (gensym state)))
+          {} (set (concat (map first transitions) (map last transitions)))))
+
 (defn create-dfa
   "Creates a hashmap based representation of a DFA
   Syntax: (create-dfa init-state accept-states & transitions)
@@ -22,14 +38,14 @@
   each transition is a 3-tuple of ['state' 'input' 'resulting state']
   Epsilon transitions can be specified as ['state' :eps 'resulting state']"
   [init-state accept-states & transitions]
-  {:init init-state
-   :states (set (concat (map first transitions) (map last transitions)))
-   :accept (set accept-states)
-   :transitions (reduce (fn [nfa-map current]
-                          (let [[from input to] current
-                                trans-on-input (get nfa-map [from input] [])]
-                            (assoc nfa-map [from input] (conj trans-on-input to))))
-                        {} transitions)})
+  (let [sym-map (gensym-states transitions)]
+    (create-nfa-raw (get sym-map init-state)
+                    (map (partial get sym-map) accept-states)
+                    (map (fn [trns]
+                           (vector (get sym-map (first trns))
+                                   (second trns)
+                                   (get sym-map (last trns)))) transitions))))
+
 (defn in?
   "Return true if setcoll contains at least one element in values"
   [setcoll values]
