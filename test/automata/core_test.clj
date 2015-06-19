@@ -146,4 +146,68 @@
     :when ["10"] = false
     :when ["01"] = false))
 
+(let [a-nfa (single-char-nfa "a")
+      b-nfa (single-char-nfa "b")
+      c-nfa (single-char-nfa "c")
+      eval-nfa-xor #(eval-nfa (apply nfa-xor %1) %2)
+      eval-nfa-cat #(eval-nfa (apply nfa-cat %1) %2)
+      eval-nfa-kleen #(eval-nfa (nfa-kleen %1) %2)]
+
+  (expected-when "nfa-xor should allow one or the other but not both" eval-nfa-xor
+    :when [[a-nfa b-nfa] "ab"] = false
+    :when [[a-nfa b-nfa] "a"] = true
+    :when [[a-nfa b-nfa] "b"] = true
+    :when [[a-nfa c-nfa] "c"] = true
+    :when [[a-nfa c-nfa] "a"] = true
+    :when [[a-nfa b-nfa c-nfa ] "a"] = true
+    :when [[a-nfa b-nfa c-nfa ] "b"] = true
+    :when [[a-nfa b-nfa c-nfa ] "c"] = true
+    :when [[a-nfa b-nfa c-nfa ] "ca"] = false
+    :when [[a-nfa b-nfa c-nfa ] "cb"] = false
+    :when [[a-nfa b-nfa c-nfa ] "ac"] = false
+    :when [[a-nfa b-nfa c-nfa ] "bc"] = false
+    :when [[a-nfa b-nfa c-nfa ] "bca"] = false
+    :when [[a-nfa b-nfa c-nfa ] ""] = false)
+
+  (expected-when "nfa-cat should allow only serial concatenations of strings" eval-nfa-cat
+    :when [[a-nfa b-nfa] "ab"] = true
+    :when [[b-nfa b-nfa] "bb"] = true
+    :when [[b-nfa a-nfa] "ba"] = true
+    :when [[b-nfa b-nfa] "bb"] = true
+    :when [[a-nfa b-nfa c-nfa] "abc"] = true
+    :when [[a-nfa b-nfa b-nfa] "abb"] = true
+    :when [[a-nfa b-nfa a-nfa b-nfa] "abab"] = true
+    :when [[a-nfa b-nfa] "abc"] = false
+    :when [[a-nfa b-nfa] "abab"] = false)
+
+  (expected-when "nfa-kleen should allow 0 or more repetitions of an nfa" eval-nfa-kleen
+    :when [a-nfa ""] = true
+    :when [a-nfa "a"] = true
+    :when [a-nfa "aa"] = true
+    :when [a-nfa "aaa"] = true
+    :when [a-nfa "aaaa"] = true
+    :when [a-nfa "aaaaaaaaaaaaa"] = true
+    :when [a-nfa "b"] = false
+    :when [a-nfa "ab"] = false
+    :when [a-nfa "aab"] = false
+    :when [a-nfa "baabaa"] = false
+    :when [(nfa-cat a-nfa b-nfa) ""] = true
+    :when [(nfa-cat a-nfa b-nfa) "ab"] = true
+    :when [(nfa-cat a-nfa b-nfa) "abab"] = true
+    :when [(nfa-cat a-nfa b-nfa) "ababab"] = true
+    :when [(nfa-cat a-nfa b-nfa) "ababab"] = true
+    :when [(nfa-cat a-nfa b-nfa) "abababab"] = true
+    :when [(nfa-cat a-nfa b-nfa) "abaabab"] = false
+    :when [(nfa-cat a-nfa b-nfa) "abababb"] = false
+    :when [(nfa-cat a-nfa b-nfa) "abababa"] = false
+    :when [(nfa-cat a-nfa b-nfa) " "] = false
+    :when [(nfa-cat a-nfa b-nfa) "aba"] = false
+    :when [(nfa-xor a-nfa b-nfa) ""] = true
+    :when [(nfa-xor a-nfa b-nfa) "a"] = true
+    :when [(nfa-xor a-nfa b-nfa) "b"] = true
+    :when [(nfa-xor a-nfa b-nfa) "ab"] = true
+    :when [(nfa-xor a-nfa b-nfa) "baa"] = true
+    :when [(nfa-xor a-nfa b-nfa) "abaaabbbaababababa"] = true))
+
+
 

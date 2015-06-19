@@ -46,6 +46,14 @@
                                    (second trns)
                                    (get sym-map (last trns)))) transitions))))
 
+(defn nfa-transitions-list
+  "Obtains a list of transitions [state input end-state] given an nfa"
+  [nfa]
+  (mapcat (fn [key-val]
+            (let [[k vs] key-val]
+              (map #(conj k %) vs)))
+          (:transitions nfa)))
+
 (defn in?
   "Return true if setcoll contains at least one element in values"
   [setcoll values]
@@ -63,7 +71,7 @@
   [coll item-to-repeat]
   (map vector coll (repeat item-to-repeat)))
 
-(defn- get-transitions
+(defn get-transitions
   [nfa state input]
   (let [get-next #(merge-repeated (get (:transitions nfa) [state %1] []) %2)]
       (concat (get-next :eps 0)
@@ -105,4 +113,45 @@
                             next-states))
                next-res)))))
 
+(defn nfa-cat
+  "Concatenates several NFAs, equivalent to regex
+  concatenations. This assumes that the NFAs have only
+  one termination state."
+  ([nfa1 nfa2]
+   (create-nfa-raw (:init nfa1) (:accept nfa2)
+                   (conj (mapcat nfa-transitions-list [nfa1 nfa2])
+                         (vector (first (:accept nfa1)) :eps (:init nfa2)))))
+  ([nfa1 nfa2 & nfas]
+   (reduce nfa-cat (nfa-cat nfa1 nfa2) nfas)))
 
+(defn nfa-xor
+  ([nfa1 nfa2]
+  (let [init (gensym :or-init)
+        end  (gensym :or-end)
+        end-nfa1 (first (:accept nfa1))
+        end-nfa2 (first (:accept nfa2))]
+    (create-nfa-raw init [end]
+                    (conj (mapcat nfa-transitions-list [nfa1 nfa2])
+                          [init :eps (:init nfa1)]
+                          [init :eps (:init nfa2)]
+                          [end-nfa1 :eps end]
+                          [end-nfa2 :eps end]))))
+  ([nfa1 nfa2 & nfas]
+   (reduce nfa-xor (nfa-xor nfa1 nfa2) nfas)))
+
+
+(defn nfa-kleen
+  [nfa]
+  (let [init (gensym :kleen-init)
+        end  (gensym :kleen-end)
+        nfa-end (first (:accept nfa))]
+    (create-nfa-raw init [end]
+                    (conj (nfa-transitions-list nfa)
+                          [init :eps (:init nfa)]
+                          [init :eps end]
+                          [nfa-end :eps init]))))
+
+
+(defn single-char-nfa
+  [ch]
+  (create-nfa :a [:end] [:a ch :end]))
