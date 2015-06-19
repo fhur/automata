@@ -11,7 +11,9 @@
                             (assoc nfa-map [from input] (conj trans-on-input to))))
                         {} transitions)})
 
-(defn gensym-states
+(defn- gensym-states
+  "Given a list of [state input state] transitions, this function
+  returns a map of state => (gensym state)"
   [transitions]
   (reduce (fn [m state] (assoc m state (gensym state)))
           {} (set (concat (map first transitions) (map last transitions)))))
@@ -61,6 +63,7 @@
   (not (nil? (some setcoll values))))
 
 (defn- get-transition
+  "Obtains the next state of a DFA given the current state and input"
   [dfa state input]
   (if (nil? state)
     nil
@@ -125,6 +128,9 @@
    (reduce nfa-cat (nfa-cat nfa1 nfa2) nfas)))
 
 (defn nfa-xor
+  "Computes the xor of several NFAs, equivalent to the [AB]
+  regex operation. This assumes that the NFAs have only one
+  termination state."
   ([nfa1 nfa2]
   (let [init (gensym :or-init)
         end  (gensym :or-end)
@@ -141,6 +147,9 @@
 
 
 (defn nfa-kleen
+  "Computes the kleen star NFA given an NFA, equivalent to
+  the A* regex oepration. This assumes that the NFAs have only one
+  termination state."
   [nfa]
   (let [init (gensym :kleen-init)
         end  (gensym :kleen-end)
@@ -153,5 +162,10 @@
 
 
 (defn single-char-nfa
+  "Helper method that returns an NFA that accepts only the given
+  character as input"
   [ch]
   (create-nfa :a [:end] [:a ch :end]))
+
+
+(defn 
