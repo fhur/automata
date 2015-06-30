@@ -20,14 +20,15 @@
   "A list of all states including the given state that are
   accesible via epsilon moves"
   [nfa state]
-  (map e-clos (transition nfa state :eps)))
+  (cons state
+        (mapcat (partial e-clos nfa) (transition nfa state :eps))))
 
 (defn accepting-inputs
   "Returns the list of inputs that a list of states accepts
   for a given NFA"
   [nfa states]
   (reduce (fn [inputs [in-state input _]]
-            (if (in? states in-state)
+            (if (and (in? states in-state) (not= :eps input))
               (conj inputs input)
               inputs))
           #{} (:transition-list nfa)))
@@ -73,15 +74,47 @@
 (defn single-char-nfa [c]
   (create-nfa :init :end [:init c :end]))
 
-(defn nfa-cat [nfa1 nfa2]
-  (apply create-nfa (:init nfa1) (:end nfa2)
-         (conj (concat-transition-lists nfa1 nfa2)
-               [(:end nfa1) :eps (:init nfa2)])))
+(defn nfa-cat
+  ([nfa1 nfa2]
+   (apply create-nfa (:init nfa1) (:end nfa2)
+          (conj (concat-transition-lists nfa1 nfa2)
+                [(:end nfa1) :eps (:init nfa2)])))
+  ([nfa1 nfa2 & nfas]
+   (reduce nfa-cat (nfa-cat nfa1 nfa2) nfas)))
 
-(defn nfa-or [nfa1 nfa2]
-  (apply create-nfa :or-init :or-end
-         (conj (concat-transition-lists nfa1 nfa2)
-               [:or-init :eps (:init nfa1)]
-               [:or-init :eps (:init nfa2)]
-               [(:end nfa1) :eps :or-end]
-               [(:end nfa2) :eps :or-end])))
+(defn nfa-or
+  ([nfa1 nfa2]
+   (apply create-nfa :or-init :or-end
+          (conj (concat-transition-lists nfa1 nfa2)
+                [:or-init :eps (:init nfa1)]
+                [:or-init :eps (:init nfa2)]
+                [(:end nfa1) :eps :or-end]
+                [(:end nfa2) :eps :or-end])))
+  ([nfa1 nfa2 & nfas]
+   (reduce nfa-or (nfa-or nfa1 nfa2) nfas)))
+
+(defn nfa-?
+  [nfa]
+  (apply create-nfa :?-init :?-end
+         (conj (:transition-list nfa)
+               [:?-init :eps (:init nfa)]
+               [:?-init :eps :?-end]
+               [(:end nfa) :eps :?-end])))
+
+(defn nfa-*
+  [nfa]
+  (apply create-nfa :kleen-init :kleen-end
+         (conj (:transition-list nfa)
+               [:kleen-init :eps :kleen-end]
+               [:kleen-init :eps (:init nfa)]
+               [(:end nfa) :eps :kleen-init])))
+
+(defn nfa-+
+  [nfa]
+  (apply create-nfa :kleen-init :kleen-end
+         (conj (:transition-list nfa)
+               [:kleen-init :eps (:init nfa)]
+               [(:end nfa) :eps :kleen-init]
+               [(:end nfa) :eps :kleen-end])))
+
+
