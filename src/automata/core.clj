@@ -1,199 +1,87 @@
 (ns automata.core)
 
+(def id-generator (let [counter (ref 0)]
+                    (fn [] (dosync (let [cur-val @counter]
+                      (do (alter counter + 1)
+                          cur-val))))))
+
+(defn in?
+  "true if seq contains elm"
+  [coll elm]
+  (some #(= elm %) coll))
+
+(defn transition
+  "Returns a list of states that are the result of applying
+  the transition function on the given state and input"
+  [nfa state input]
+  (get (:transitions nfa) [state input] []))
+
+(defn e-clos
+  "A list of all states including the given state that are
+  accesible via epsilon moves"
+  [nfa state]
+  (map e-clos (transition nfa state :eps)))
+
+(defn accepting-inputs
+  "Returns the list of inputs that a list of states accepts
+  for a given NFA"
+  [nfa states]
+  (reduce (fn [inputs [in-state input _]]
+            (if (in? states in-state)
+              (conj inputs input)
+              inputs))
+          #{} (:transition-list nfa)))
+
+(defn make-unique [keyw]
+  (keyword (str (name keyw) (id-generator))))
+
+(defn unique-transitions [transitions]
+  (reduce (fn [red cur]
+            (assoc red cur (make-unique cur)))
+          {} (set (concat (map first transitions)
+                          (map last transitions)))))
+
+(defn concat-transition-lists
+  [nfa1 nfa2]
+  (concat (:transition-list nfa1)
+          (:transition-list nfa2)))
 
 (defn- create-nfa-raw
-  [init-state accept-states transitions]
-  {:init init-state
-   :accept (set accept-states)
-   :transitions (reduce (fn [nfa-map current]
-                          (let [[from input to] current
-                                trans-on-input (get nfa-map [from input] [])]
-                            (assoc nfa-map [from input] (conj trans-on-input to))))
-                        {} transitions)})
-
-(defn- gensym-states
-  "Given a list of [state input state] transitions, this function
-  returns a map of state => (gensym state)"
-  [transitions]
-  (reduce (fn [m state] (assoc m state (gensym state)))
-          {} (set (concat (map first transitions) (map last transitions)))))
-
-(defn create-dfa
-  "Creates a hashmap based representation of a DFA
-  Syntax: (create-dfa init-state accept-states & transitions)
-  Where each transition is a 3-tuple of ['initial state' 'input' 'resulting state']
-  Note: this method does no validation on the transitions."
-  [init-state accept-states & transitions ]
-  {:pre [(coll? accept-states)
-         (not (empty? transitions))
-         (not (empty? accept-states))]}
-  {:init init-state
-   :states (set (concat (map first transitions) (map last transitions)))
-   :accept (set accept-states)
-   :transitions (reduce (fn [dfa-map current]
-                          (let [[from input to] current]
-                            (assoc dfa-map [from input] to)))
+  "Creates an NFA"
+  [init end transitions]
+  {:init init
+   :end end
+   :transition-list transitions
+   :transitions (reduce (fn [transition-map [in-state input out-state]]
+                          (assoc transition-map
+                                 [in-state input]
+                                 (conj (get transition-map [in-state input] []) out-state)))
                         {} transitions)})
 
 (defn create-nfa
-  "Creates a hashmap based representation of a NFA
-  each transition is a 3-tuple of ['state' 'input' 'resulting state']
-  Epsilon transitions can be specified as ['state' :eps 'resulting state']"
-  [init-state accept-states & transitions]
-  (let [sym-map (gensym-states transitions)]
-    (create-nfa-raw (get sym-map init-state)
-                    (map (partial get sym-map) accept-states)
-                    (map (fn [trns]
-                           (vector (get sym-map (first trns))
-                                   (second trns)
-                                   (get sym-map (last trns)))) transitions))))
+  [init end & transitions]
+  (let [unique-map (unique-transitions transitions)
+        unique! (fn [state] (get unique-map state))]
+    (create-nfa-raw (unique! init)
+                    (unique! end)
+                    (map (fn [[in-state input out-state]]
+                           (vector (unique! in-state)
+                                   input
+                                   (unique! out-state)))
+                         transitions))))
 
-(defn nfa-transitions-list
-  "Obtains a list of transitions [state input end-state] given an nfa"
-  [nfa]
-  (mapcat (fn [key-val]
-            (let [[k vs] key-val]
-              (map #(conj k %) vs)))
-          (:transitions nfa)))
+(defn single-char-nfa [c]
+  (create-nfa :init :end [:init c :end]))
 
-(defn in?
-  "Return true if setcoll contains at least one element in values"
-  [setcoll values]
-  {:pre [(set? setcoll)]}
-  (not (nil? (some setcoll values))))
+(defn nfa-cat [nfa1 nfa2]
+  (apply create-nfa (:init nfa1) (:end nfa2)
+         (conj (concat-transition-lists nfa1 nfa2)
+               [(:end nfa1) :eps (:init nfa2)])))
 
-(defn- get-transition
-  "Obtains the next state of a DFA given the current state and input"
-  [dfa state input]
-  (if (nil? state)
-    nil
-    (get (:transitions dfa)
-      [state (str input)])))
-
-(defn- merge-repeated
-  [coll item-to-repeat]
-  (map vector coll (repeat item-to-repeat)))
-
-(defn get-transitions
-  [nfa state input]
-  (let [get-next #(merge-repeated (get (:transitions nfa) [state %1] []) %2)]
-      (concat (get-next :eps 0)
-              (get-next (str input) 1))))
-
-(defn- accept?
-  "Returns true if the given state is an accepting state for the dfa"
-  [dfa state]
-  (contains? (:accept dfa)
-             state))
-
-(defn eval-dfa
-  "Executes the given DFA as created by create-dfa using the given
-  string as input. The method returns true if both the string finished
-  and the automata resulted in an accepting state"
-  [dfa string]
-  (accept? dfa
-    (reduce (fn [state input]
-                (get-transition dfa state input))
-            (:init dfa)
-            (seq string))))
-
-(defn eval-nfa
-  "Executed the given NFA as created by create-nfa using the given string."
-  [nfa string]
-  ;; Create a queue that will hold all calls that must be processed recursively
-  (loop [queue [[(seq string) (:init nfa)]]
-         result []]
-    (if (empty? queue)
-      ;; once the queue is empty, we have finished processing everything and so
-      ;; we can just return the result
-      (in? (:accept nfa) result)
-      (let [[charseq state] (first queue) ;; take the first from the queue
-            input (first charseq) ;; the the first char of input
-            next-states (get-transitions nfa state input)
-            next-res (if (empty? charseq) (conj result state) result)]
-        (recur (concat (rest queue) ;; pop one from the queue
-                       (map #(vector (drop (second %) charseq) (first %))
-                            next-states))
-               next-res)))))
-
-(defn nfa-cat
-  "Concatenates several NFAs, equivalent to regex
-  concatenations. This assumes that the NFAs have only
-  one termination state."
-  ([nfa1 nfa2]
-   (create-nfa-raw (:init nfa1) (:accept nfa2)
-                   (conj (mapcat nfa-transitions-list [nfa1 nfa2])
-                         (vector (first (:accept nfa1)) :eps (:init nfa2)))))
-  ([nfa1 nfa2 & nfas]
-   (reduce nfa-cat (nfa-cat nfa1 nfa2) nfas)))
-
-(defn nfa-xor
-  "Computes the xor of several NFAs, equivalent to the [AB]
-  regex operation. This assumes that the NFAs have only one
-  termination state."
-  ([nfa1 nfa2]
-  (let [init (gensym :or-init)
-        end  (gensym :or-end)
-        end-nfa1 (first (:accept nfa1))
-        end-nfa2 (first (:accept nfa2))]
-    (create-nfa-raw init [end]
-                    (conj (mapcat nfa-transitions-list [nfa1 nfa2])
-                          [init :eps (:init nfa1)]
-                          [init :eps (:init nfa2)]
-                          [end-nfa1 :eps end]
-                          [end-nfa2 :eps end]))))
-  ([nfa1 nfa2 & nfas]
-   (reduce nfa-xor (nfa-xor nfa1 nfa2) nfas)))
-
-
-(defn nfa-kleen
-  "Computes the kleen star NFA given an NFA, equivalent to
-  the A* regex oepration. This assumes that the NFAs have only one
-  termination state."
-  [nfa]
-  (let [init (gensym :kleen-init)
-        end  (gensym :kleen-end)
-        nfa-end (first (:accept nfa))]
-    (create-nfa-raw init [end]
-                    (conj (nfa-transitions-list nfa)
-                          [init :eps (:init nfa)]
-                          [init :eps end]
-                          [nfa-end :eps init]))))
-
-(defn nfa-optional
-  "Computes the optional (?) operator given an NFA."
-  [nfa]
-  (let [init (gensym :opt-init)
-        nfa-end (first (:accept nfa))]
-    (create-nfa-raw init [nfa-end]
-                    (conj (nfa-transitions-list nfa)
-                          [init :eps (:init nfa)]
-                          [init :eps nfa-end]))))
-
-
-(defn single-char-nfa
-  "Helper method that returns an NFA that accepts only the given
-  character as input"
-  [ch]
-  (create-nfa :a [:end] [:a ch :end]))
-
-(defmacro regex
-  "Allows you to write regular expressions in prefix notation. Currently only these
-  operators are allowed:
-  '*' kleen star
-  '+' xor
-  '.' concatenation
-  '?' optional
-  "
-  [sym & args]
-  (let [sym-map {'* 'nfa-kleen
-                 '+ 'nfa-xor
-                 '. 'nfa-cat
-                 '? 'nfa-optional}
-        mapped-sym (get sym-map sym)]
-    (cons mapped-sym
-          (map (fn [item]
-                 (if (coll? item)
-                   (concat `(regex ~(first item)) (rest item))
-                   `(single-char-nfa ~item))) args))))
-
+(defn nfa-or [nfa1 nfa2]
+  (apply create-nfa :or-init :or-end
+         (conj (concat-transition-lists nfa1 nfa2)
+               [:or-init :eps (:init nfa1)]
+               [:or-init :eps (:init nfa2)]
+               [(:end nfa1) :eps :or-end]
+               [(:end nfa2) :eps :or-end])))
