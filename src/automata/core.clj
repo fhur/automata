@@ -1,21 +1,6 @@
-(ns automata.core)
-
-(def id-generator (let [counter (ref 0)]
-                    (fn [] (dosync (let [cur-val @counter]
-                      (do (alter counter + 1)
-                          cur-val))))))
-
-(defn conj-all
-  "Conjoins all the items in coll 2 to coll"
-  [coll coll2]
-  (if (empty? coll2)
-    coll
-    (apply (partial conj coll) coll2)))
-
-(defn in?
-  "true if seq contains elm"
-  [coll elm]
-  (some #(= elm %) coll))
+(ns automata.core
+  (:require [clojure.set :as sets]
+            [automata.util :refer :all]))
 
 (defn transition
   "Returns a list of states that are the result of applying
@@ -49,16 +34,13 @@
               inputs))
           #{} (:transition-list nfa)))
 
-(defn make-unique [keyw]
-  (keyword (str (name keyw) (id-generator))))
-
-(defn unique-transitions [transitions]
+(defn- unique-transitions [transitions]
   (reduce (fn [red cur]
-            (assoc red cur (make-unique cur)))
+            (assoc red cur (make-unique! cur)))
           {} (set (concat (map first transitions)
                           (map last transitions)))))
 
-(defn concat-transition-lists
+(defn- concat-transition-lists
   [nfa1 nfa2]
   (concat (:transition-list nfa1)
           (:transition-list nfa2)))
@@ -91,6 +73,7 @@
   (create-nfa :init :end [:init c :end]))
 
 (defn nfa-cat
+  ([nfa] nfa)
   ([nfa1 nfa2]
    (apply create-nfa (:init nfa1) (:end nfa2)
           (conj (concat-transition-lists nfa1 nfa2)
@@ -156,7 +139,7 @@
   collection of transition this method will return all
   transitions that are in next-trns and not in transitions-set"
   [transitions-set next-trns]
-  (clojure.set/difference (set next-trns) transitions-set))
+  (sets/difference (set next-trns) transitions-set))
 
 (defn transitions->out-states
   "Given a list of transitions, this method returns the
@@ -178,6 +161,7 @@
                (conj-all transitions next-trns))))))
 
 (defn nfa->dfa
+  "Converts an NFA to a DFA. The resuting NFA can be executed using exec-dfa"
   [nfa]
   (let [transitions (transitions:nfa->dfa nfa)]
     {:init (dfa-init nfa)
@@ -196,3 +180,28 @@
       (or (empty? string) (nil? state)) false
       :else (recur (.substring string 1)
                    (get (:transitions dfa) [state (.substring string 0 1)])))))
+
+(defn string-nfa
+  [string]
+  (if (= 1 (count string))
+    (single-char-nfa string)
+    (apply nfa-cat (map (comp single-char-nfa str)
+                        (seq string)))))
+
+(defmacro regex-nfa
+  [sym args]
+  (let [symap {'+ 'nfa-+
+               '. 'nfa-cat
+               '? 'nfa-?
+               '* 'nfa-*
+               '| 'nfa-or}]
+  (cons (get symap sym)
+        (map #(if (string? %)
+                `(string-nfa ~%)
+                (regex-nfa sym args))
+             args))))
+
+#_(defn regex
+  [sym & args]
+  (nfa->dfa (regex-nfa sym args)))
+
