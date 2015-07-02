@@ -6,7 +6,8 @@
 (def regex-simple-cat (regex . "foobar"))
 (def regex-compound-cat (regex . "ab" "cd" "ef" "gh"))
 (def regex-simple-kleen (regex * "01"))
-(def regex-compound-kleen (regex * (. "0" "1" "2")))
+(def regex-compound-kleen (regex * (| "0" "1" "2")))
+(def regex-compound-kleen-concat (regex . "init" (* (| "ab"  "12")) "end"))
 
 (expected-when "simple concatenation" (partial exec-dfa regex-simple-cat)
   :when ["foobar"] = true
@@ -36,7 +37,7 @@
   :when ["0100"] = false
   :when ["00101"] = false)
 
-#_(expected-when "compound kleen" (partial exec-dfa regex-compound-kleen)
+(expected-when "compound kleen" (partial exec-dfa regex-compound-kleen)
   :when [""] = true
   :when ["0"] = true
   :when ["1"] = true
@@ -54,8 +55,15 @@
   :when [" 10010020012121201201212"] = false
   :when ["031213"] = false)
 
-
-
+(expected-when "compound kleen and concat" (partial exec-dfa regex-compound-kleen-concat)
+  :when ["initend"] = true
+  :when ["initabend"] = true
+  :when ["init12end"] = true
+  :when ["init12end"] = true
+  :when ["init1212ab1212abababend"] = true
+  :when ["init"] = false
+  :when ["end"] = false
+  :when ["init end"] = false)
 
 
 
