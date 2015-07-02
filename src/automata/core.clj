@@ -189,19 +189,19 @@
                         (seq string)))))
 
 (defmacro regex-nfa
-  [sym args]
+  [sym & args]
   (let [symap {'+ 'nfa-+
                '. 'nfa-cat
                '? 'nfa-?
                '* 'nfa-*
                '| 'nfa-or}]
-  (cons (get symap sym)
-        (map #(if (string? %)
-                `(string-nfa ~%)
-                (regex-nfa sym args))
-             args))))
+    (cons (get symap sym)
+          (map #(if (string? %)
+                  `(string-nfa ~%)
+                  (cons `regex-nfa %))
+               args))))
 
-#_(defn regex
+(defmacro regex
   [sym & args]
-  (nfa->dfa (regex-nfa sym args)))
-
+  (cons `nfa->dfa
+        (list (concat `(regex-nfa ~sym) args))))
