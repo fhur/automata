@@ -14,7 +14,7 @@ You can define regular expressions using the `regex-nfa` and `regex` macros.
 
 Example:
 ```clojure
-(regex-nfa | "0" (* "1") "0"
+(regex-nfa | "0" (* "1") "0")
 ;; matches strings that start with 0, end with 0 and have 0 or more "1"s in between
 ```
 
